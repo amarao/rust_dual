@@ -8,24 +8,41 @@ struct Multiwrite {
 }
 
 impl Multiwrite {
-    fn new(size: usize, init_value: u32) -> Self {
+    fn new(size: usize, init_value: u32) -> Result<Self, &'static str> {
+        if size == 0{
+            return Err("size should be > 0");
+        }
         let mut vec = Vec::with_capacity(size);
         vec.resize_with(size, || AtomicU32::new(init_value));
         let ptr = vec.as_mut_ptr();
         unsafe {
-            Multiwrite {
+            Ok(Multiwrite {
                 vec,
                 slice: std::slice::from_raw_parts_mut(ptr, size),
                 thread: None,
-            }
+            })
         }
     }
 
     fn get(&self, idx: usize) -> u32 {
         self.slice[idx].load(Relaxed)
     }
-    fn set(&mut self, idx: usize, val: u32) {
+    fn set(&self, idx: usize, val: u32) {
         self.slice[idx].store(val, Relaxed);
+    }
+
+    fn copy_into_slice<T>(&self, dest: &mut [T]) -> Result<(), &'static str>
+    where T: bytemuck::Pod {
+            if self.slice.len() * std::mem::size_of_val(&self.slice[0]) != dest.len() * std::mem::size_of_val(&dest[0]){
+                return Err("Size of target should be the same as source.")
+            }
+            let target_u32: &mut [u32] = bytemuck::cast_slice_mut(dest);
+            for idx in 0..self.slice.len(){
+                unsafe {
+                    *target_u32.get_unchecked_mut(idx) = self.slice.get_unchecked(idx).load(Relaxed);
+                }
+            }
+            Ok(())
     }
 
     fn spawn<F>(&mut self, f: F)
@@ -36,7 +53,7 @@ impl Multiwrite {
         unsafe {
             let ptr = self.vec.as_mut_ptr();
 
-            let mut cloned = Multiwrite {
+            let cloned = Multiwrite {
                 vec: Vec::new(),
                 slice: std::slice::from_raw_parts_mut(ptr, size),
                 thread: None,
@@ -65,7 +82,7 @@ fn loop_set(mut mw: Multiwrite) {
 
 fn main() {
     println!("Hello, world!");
-    let mut a = Multiwrite::new(1, 0);
+    let mut a = Multiwrite::new(1, 0).unwrap();
     a.spawn(loop_set);
     loop {
         println!("{}", a.get(0));
@@ -77,12 +94,12 @@ fn main() {
 
 #[test]
 fn test_create() {
-    let a = Multiwrite::new(1, 0);
+    let a = Multiwrite::new(1, 0).unwrap();
     assert_eq!(a.get(0), 0);
 }
 #[test]
 fn test_write() {
-    let mut a = Multiwrite::new(1, 0);
+    let mut a = Multiwrite::new(1, 0).unwrap();
     a.set(0, 42);
     assert_eq!(a.get(0), 42);
 }
