@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering::Relaxed;
 use std::sync::Arc;
 
 struct Multiwrite {
-    data:  Arc<Vec<AtomicU32>>,
+    data:  Arc<[AtomicU32]>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
@@ -15,7 +15,7 @@ impl Multiwrite{
         let mut vec = Vec::with_capacity(size);
         vec.resize_with(size, || AtomicU32::new(init_value));
         Ok(Multiwrite {
-                data: Arc::new(vec),
+                data: Arc::from(vec),
                 thread: None,
         })
     }
