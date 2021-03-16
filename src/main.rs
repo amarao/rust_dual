@@ -81,14 +81,15 @@ fn loop_set(mut mw: Multiwrite) {
 }
 
 fn main() {
-    println!("Hello, world!");
     let mut a = Multiwrite::new(1, 0).unwrap();
     a.spawn(loop_set);
-    loop {
-        println!("{}", a.get(0));
-        if a.get(0) >= 65536 {
-            break;
+    for i in 0..10 {
+        while a.get(0) < 2147483648 {
         }
+        println!("{} lower part done", i);
+        while a.get(0) > 65536 {
+        }
+        println!("{} upper part done", i);
     }
 }
 
